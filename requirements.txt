@@ -1,0 +1,7 @@
+pytube==15.0.0
+aiogram==3.3.0
+SQLAlchemy==2.0.22
+alembic==1.12.1
+asyncpg==0.28.0
+environs==9.5.0
+telethon==1.33.1
