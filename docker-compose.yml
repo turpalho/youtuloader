@@ -43,7 +43,7 @@ services:
     volumes:
       - postgres_volume:/var/lib/postgresql/data
     ports:
-      - 5432:5432
+      - 5433:5432
     user: ${DB_USER}
     environment:
       - POSTGRES_DB=${DB_NAME}

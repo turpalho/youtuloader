@@ -5,13 +5,9 @@ from pytube import YouTube
 import logging
 import aiohttp
 
-def download_video(video_url: str, video_path: str, video_name: str) -> None:
+async def download_video(video_url: str, video_path: str, video_name: str) -> None:
     yt = YouTube(video_url)
-
-    # Выберите качество видео (может потребоваться некоторое время для поиска)
     video = yt.streams.get_highest_resolution()
-
-    # Укажите путь, куда сохранить видео
     video.download(output_path=video_path, filename=video_name)
 
 
@@ -22,27 +18,24 @@ async def download_video_async(video_url: str, video_path: str, video_name: str)
         await asyncio.to_thread(video.download, output_path=video_path, filename=video_name)
 
 
-async def get_video_length(video_url: str, video_path: str, video_name: str) -> int:
+async def get_video_length(video_url: str) -> int:
     async with aiohttp.ClientSession() as session:
         yt = await asyncio.to_thread(YouTube, video_url)
-
-        # Получаем URL обложки
-        thumbnail_url = yt.thumbnail_url
-
-        # Асинхронно загружаем обложку
-        async with session.get(thumbnail_url) as response:
-            thumbnail_data = await response.read()
-
-         # Сохраняем обложку
-        thumbnail_path = f"{video_path}/{video_name}_thumbnail.jpg"
-        with open(thumbnail_path, 'wb') as thumbnail_file:
-            thumbnail_file.write(thumbnail_data)
-
-
-        # Получить длительность видео в секундах
         video_length = yt.length
 
         return video_length
+
+
+async def save_video_thumbnail(video_url: str, thumbnail_path: str) -> None:
+    async with aiohttp.ClientSession() as session:
+        yt = await asyncio.to_thread(YouTube, video_url)
+        thumbnail_url = yt.thumbnail_url
+
+        async with session.get(thumbnail_url) as response:
+            thumbnail_data = await response.read()
+
+        with open(thumbnail_path, 'wb') as thumbnail_file:
+            thumbnail_file.write(thumbnail_data)
 
 
 def is_youtube_url(url):
