@@ -10,6 +10,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import (CallbackQuery,
                            Message,
                            FSInputFile,
+                           InputMediaPhoto,
                            LabeledPrice,
                            PreCheckoutQuery,
                            ShippingQuery,
@@ -30,6 +31,7 @@ from tg_bot.keyboards.user import (get_main_keyboard,
                                    get_payment_methods_keyboard)
 from tg_bot.services.utils import create_absolute_path, downloader_youtube_video
 from tg_bot.filters.user import AddAdminFilter
+from tg_bot.services.composer import Composer
 
 logger = logging.getLogger(__name__)
 
@@ -91,8 +93,8 @@ async def enter_url(call: CallbackQuery, state: FSMContext) -> None:
 
 
 @user_router.message(DownloadState.waiting_send_video_url)
-async def download_youtube_video(message: Message, state: FSMContext, dataFacade: DataFacade, bot: Bot, config: Config) -> None:
-    await downloader_youtube_video(message, state, dataFacade, bot, config)
+async def download_youtube_video(message: Message, state: FSMContext, dataFacade: DataFacade, bot: Bot, config: Config, composer: Composer) -> None:
+    await downloader_youtube_video(message, state, dataFacade, bot, config, composer)
 
 
 @user_router.message(Command(commands=['help']))
@@ -213,18 +215,18 @@ async def got_payment(message: Message, dataFacade: DataFacade, state: FSMContex
 
 
 @user_router.message()
-async def all_meesages(message: Message, state: FSMContext, dataFacade: DataFacade, bot: Bot, config: Config):
+async def all_meesages(message: Message, state: FSMContext, dataFacade: DataFacade, bot: Bot, config: Config, composer: Composer):
     await state.clear()
 
     if message.chat.id == config.tg_bot.client_user_id:
-        data = message.text.split("*_*")
+        logging.info(message)
+        video = message.video
+        data = message.caption.split("*_*")
         user_id = int(data[0])
-        video_url = data[1]
-        video_message_id = data[2]
-        downloading_message = int(data[3])
-        await bot.delete_message(chat_id=user_id, message_id=downloading_message)
-        await bot.send_video(chat_id=user_id, video=video_url, caption=f'Скачивай видео с YouTube вместе с нами!\n\n{hlink("https://t.me/youtube_videoloader_bot", "https://t.me/youtube_videoloader_bot")}')
-        await bot.delete_message(f"@{config.tg_bot.client_chat_username}", int(video_message_id))
+        message_del_id = int(data[1])
+
+        await bot.delete_message(user_id, message_del_id)
+        await bot.send_video(chat_id=user_id, video=video.file_id, caption=messages_text['followus'])
         return
 
-    await downloader_youtube_video(message, state, dataFacade, bot, config)
+    await downloader_youtube_video(message, state, dataFacade, bot, config, composer)
