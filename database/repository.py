@@ -34,8 +34,8 @@ class DataFacade:
     async def add_user(self, user_id: int, user_name: str | None, full_name: str | None) -> None:
         return await self.user_repo.add_user(user_id, user_name, full_name)
 
-    async def update_user_premium(self, user_id: int, premium: bool) -> None:
-        return await self.user_repo.update_user_premium(user_id, premium)
+    async def update_user_premium(self, user_id: int, premium: bool, email: str) -> None:
+        return await self.user_repo.update_user_premium(user_id, premium, email)
 
     async def add_payment(self, user_id: int, amount: int, method: str) -> None:
         return await self.payment_repo.add_payment(user_id, amount, method)
@@ -111,9 +111,9 @@ class UserRepo:
                 await session.rollback()
         return
 
-    async def update_user_premium(self, user_id: int, premium: bool) -> None:
+    async def update_user_premium(self, user_id: int, premium: bool, email: str) -> None:
         async with self.async_session_maker() as session:
-            stmt = update(User).where(User.user_id == user_id).values(premium=premium)
+            stmt = update(User).where(User.user_id == user_id).values(premium=premium, email=email)
             await session.execute(stmt)
             await session.commit()
         return

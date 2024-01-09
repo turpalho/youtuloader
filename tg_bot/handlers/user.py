@@ -140,7 +140,7 @@ async def send_donat(call: CallbackQuery, state: FSMContext, config: Config, bot
     await bot.delete_message(user_id, message_subscribe)
 
     price = 79
-    description = 'Премиум версия Telegram бота "Скачать видео с YouTube", с помощью которого можно скачивать длинные видео с YouTube.'
+    description = messages_text['paydescription']
     provider_data_dict = {
         "receipt": {
             "items": [
@@ -210,7 +210,7 @@ async def got_payment(message: Message, dataFacade: DataFacade, state: FSMContex
     amount = payment.total_amount / 100
     await dataFacade.add_payment(user_id=user_id, amount=round(amount, ndigits=2), method="bankcard")
 
-    await dataFacade.update_user_premium(user_id=user_id, premium=True)
+    await dataFacade.update_user_premium(user_id=user_id, premium=True, email=payment.order_info.email)
     await message.answer(text=messages_text["paySuccess"], reply_markup=await get_back_keyboard(), disable_web_page_preview=True)
 
 

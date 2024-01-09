@@ -14,6 +14,7 @@ class User(Base):
     username: Mapped[Optional[str]]
     is_blocked: Mapped[bool]
     premium: Mapped[bool] = mapped_column(default=False)
+    email: Mapped[Optional[str]]
 
     create_date = mapped_column(DateTime, server_default=func.now()) # index=True
 
