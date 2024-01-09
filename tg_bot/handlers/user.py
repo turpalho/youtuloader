@@ -54,7 +54,6 @@ async def add_admin(message: Message, config: Config,
 @user_router.message(CommandStart())
 @user_router.callback_query(F.data.startswith('main_menu'))
 async def get_menu(obj: Message | CallbackQuery, state: FSMContext, dataFacade: DataFacade, bot: Bot) -> None:
-    await state.clear()
     if isinstance(obj, CallbackQuery):
         try:
             await obj.message.edit_text(text=messages_text["menu"], reply_markup=await get_main_keyboard())
@@ -82,6 +81,8 @@ async def get_menu(obj: Message | CallbackQuery, state: FSMContext, dataFacade: 
         await bot.delete_message(user_id, invoice_message)
     except:
         logging.info("Не invoice")
+
+    await state.clear()
 
 
 @user_router.callback_query(F.data == 'download')
