@@ -54,14 +54,6 @@ async def add_admin(message: Message, config: Config,
 @user_router.message(CommandStart())
 @user_router.callback_query(F.data.startswith('main_menu'))
 async def get_menu(obj: Message | CallbackQuery, state: FSMContext, dataFacade: DataFacade, bot: Bot) -> None:
-    try:
-        data = await state.get_data()
-        user_id = int(data["user_id"])
-        invoice_message = int(data["invoice_message"])
-        await bot.delete_message(user_id, invoice_message)
-    except:
-        logging.info("Не invoice")
-
     await state.clear()
     if isinstance(obj, CallbackQuery):
         try:
@@ -82,6 +74,14 @@ async def get_menu(obj: Message | CallbackQuery, state: FSMContext, dataFacade: 
             await dataFacade.add_user(obj.chat.id, username, full_name)
         except Exception as e:
             logging.info(str(e))
+
+    try:
+        data = await state.get_data()
+        user_id = int(data["user_id"])
+        invoice_message = int(data["invoice_message"])
+        await bot.delete_message(user_id, invoice_message)
+    except:
+        logging.info("Не invoice")
 
 
 @user_router.callback_query(F.data == 'download')
