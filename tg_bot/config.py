@@ -18,12 +18,11 @@ class TgBot:
     admin_ids: list[int]
     yookassa_token: str
     use_redis: bool
-    bot_username: str
     client_phone_number: str
     client_session_name: str
     client_api_id: str
     client_api_hash: str
-    client_chat_username: str
+    bot_user_id: int
     client_user_id: int
 
 
@@ -55,12 +54,11 @@ def load_config(path: str | None = None) -> Config:
             admin_ids=list(map(int, env.list('ADMINS'))),
             yookassa_token=env.str('YOOKASSA_TOKEN'),
             use_redis=env.bool('USE_REDIS'),
-            bot_username=env.str('BOT_USER_NAME'),
             client_phone_number=env.str('TELEGRAM_PHONE'),
             client_session_name=env.str('SESSION_NAME'),
             client_api_id=env.str('API_ID'),
             client_api_hash=env.str('API_HASH'),
-            client_chat_username=env.str('CLIENT_CHAT_USERNAME'),
+            bot_user_id=env.str('BOT_USER_ID'),
             client_user_id=env.int('CLIENT_USER_ID'),
         ),
         db=DbConfig(

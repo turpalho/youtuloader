@@ -34,7 +34,7 @@ class MessageHandler:
         ]
 
         await self._client.send_file(
-            entity=6600564628,
+            entity=self.config.tg_bot.bot_user_id,
             file=video_path,
             mime_type='video/mp4',
             attributes=video_attributes,
