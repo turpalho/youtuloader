@@ -137,7 +137,6 @@ async def send_donat(call: CallbackQuery, state: FSMContext, config: Config, bot
     message_subscribe = int(data["message_id"])
     await state.clear()
     user_id = call.message.chat.id
-    await bot.delete_message(user_id, message_subscribe)
 
     price = 79
     description = messages_text['paydescription']
@@ -181,7 +180,7 @@ async def send_donat(call: CallbackQuery, state: FSMContext, config: Config, bot
         payload=str(user_id),
         reply_markup=await get_pay_keyboard(),
     )
-
+    await bot.delete_message(user_id, message_subscribe)
     await state.set_data({"invoice_message": invoice_message.message_id, "user_id": user_id})
 
 
