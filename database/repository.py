@@ -31,6 +31,9 @@ class DataFacade:
     async def get_user(self, user_id: int) -> User:
         return await self.user_repo.get_user(user_id)
 
+    async def user_exists(self, user_id: int) -> User:
+        return await self.user_repo.user_exists(user_id)
+
     async def add_user(self, user_id: int, user_name: str | None, full_name: str | None) -> None:
         return await self.user_repo.add_user(user_id, user_name, full_name)
 
@@ -87,6 +90,13 @@ class UserRepo:
                 User.user_id == user_id)
             result = await session.execute(stmt)
         return result.scalar()
+
+    async def user_exists(self, user_id: int) -> bool:
+        async with self.async_session_maker() as session:
+            stmt = select(User).where(
+                User.user_id == user_id)
+            result = await session.execute(stmt)
+            return result.scalar() is not None
 
     async def get_user_time_sub(self, user_id: int) -> BigInteger | None:
         async with self.async_session_maker() as session:
