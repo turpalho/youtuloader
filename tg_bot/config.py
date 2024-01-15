@@ -58,7 +58,7 @@ def load_config(path: str | None = None) -> Config:
             client_session_name=env.str('SESSION_NAME'),
             client_api_id=env.str('API_ID'),
             client_api_hash=env.str('API_HASH'),
-            bot_user_id=env.str('BOT_USER_ID'),
+            bot_user_id=env.int('BOT_USER_ID'),
             client_user_id=env.int('CLIENT_USER_ID'),
         ),
         db=DbConfig(

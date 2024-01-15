@@ -53,3 +53,20 @@ async def get_pay_keyboard() -> InlineKeyboardMarkup:
     ])
     kb.adjust(1)
     return kb.as_markup()
+
+
+async def get_resolution_keyboard(resolutions: dict) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    buttons = []
+    resolution_text = ""
+    for resolution in resolutions.keys():
+        if resolution == "1080p":
+            resolution_text = f"🔰  {resolution}"
+        else:
+            resolution_text = f"🎥   {resolution}"
+        buttons.append(InlineKeyboardButton(text=f"{resolution_text}", callback_data=f"resol_{resolution}"))
+
+    buttons.append(InlineKeyboardButton(text="🔙  Главное меню", callback_data=f"main_menu"))
+    kb.add(*buttons)
+    kb.adjust(2)
+    return kb.as_markup()

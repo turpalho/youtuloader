@@ -8,20 +8,18 @@ import time
 from aiogram import Bot
 from aiogram.fsm.context import FSMContext
 from aiogram.types import (Message,
-                           FSInputFile,)
+                           CallbackQuery,
+                           FSInputFile,
+                           URLInputFile)
 from aiogram.utils.markdown import hlink
 
 from database.repository import DataFacade
 
 # from tg_bot.filters.user import AddAdminFilter
 from tg_bot.config import Config
-from tg_bot.services.youtubeManager import (get_video_length,
-                                            is_youtube_url,
-                                            download_video_async,
-                                            download_video,
-                                            save_video_thumbnail)
+from tg_bot.services.youtubeManager import (download_video_async)
 from tg_bot.services.messages_text import messages_text
-from tg_bot.keyboards.user import (get_subscribe_keyboard,)
+from tg_bot.keyboards.user import (get_back_keyboard)
 from tg_bot.services.composer import Composer
 from tg_bot.services.tracebackManager import exception_hook
 
@@ -37,59 +35,53 @@ def create_absolute_path(file_path: str, add_time: bool = False):
     return abs_file_path
 
 
-async def get_video_thumbnail(video_url: str, thumbnail_path: str) -> FSInputFile:
-    await save_video_thumbnail(video_url, thumbnail_path)
-    thumb_file = FSInputFile(thumbnail_path)
-    return thumb_file
-
-
-async def downloader_youtube_video(message: Message,
-                                   state: FSMContext,
-                                   dataFacade: DataFacade,
-                                   bot: Bot,
-                                   config: Config,
-                                   composer: Composer) -> None:
-    await state.clear()
-
-    video_url = message.text
-    if not is_youtube_url(video_url):
-        await message.answer(text=messages_text["downloadError"])
-        return
-
+def create_files_path():
     video_name = f"video_{int(time.time())}.mp4"
     video_path = create_absolute_path(f"../../source/files/")
     full_path = f"{video_path}/{video_name}"
 
+    return (video_name, video_path, full_path)
+
+
+async def downloader_youtube_video(call: CallbackQuery,
+                                   state: FSMContext,
+                                   video_url: str,
+                                   bot: Bot,
+                                   composer: Composer,
+                                   video_name: str,
+                                   video_path: str,
+                                   full_path: str,
+                                   thumb_url: str,
+                                   resolution: str,
+                                   duration: int) -> None:
+    await state.clear()
+    chat_id = call.message.chat.id
+
     try:
-        video_length = await get_video_length(video_url)
-        thumbnail_path = f"{full_path}_thumbnail.jpg"
-
-        if video_length > 300:
-            user = await dataFacade.get_user(user_id=message.chat.id)
-            thumb_file = await get_video_thumbnail(video_url, thumbnail_path)
-            if not user.premium:
-                await message.answer(text=messages_text["unsubscribed"],
-                                     reply_markup=await get_subscribe_keyboard())
-                return
-            else:
-                downloading_message = await message.answer_photo(photo=thumb_file, caption=f'{messages_text["videoDownloading"]}\n   {video_url}')
-                await download_video_async(video_url, video_path, video_name)
-                await composer.msg_handler.send_message(full_path, message.chat.id, video_length, thumbnail_path, downloading_message.message_id)
-        else:
-            thumb_file = await get_video_thumbnail(video_url, thumbnail_path)
-            downloading_message = await message.answer_photo(photo=thumb_file, caption=f'{messages_text["videoDownloading"]}\n   {video_url}')
-            await download_video_async(video_url, video_path, video_name)
-
-            video_file = FSInputFile(full_path)
-            await message.answer_video(video=video_file, thumbnail=thumb_file, duration=video_length, caption=messages_text['followus'])
-            await downloading_message.delete()
-
+        thumb_file = URLInputFile(thumb_url)
+        downloading_message = await call.message.answer_photo(photo=thumb_file, caption=f'{messages_text["videoDownloading"]}\n   {video_url}')
+        result = await download_video_async(video_url, video_path, video_name, resolution)
+        if result:
             try:
-                await asyncio.sleep(2)
-                os.remove(full_path)
-                os.remove(thumbnail_path)
+                video_file = FSInputFile(full_path)
+                await call.message.answer_video(video=video_file, thumbnail=thumb_file, duration=duration, caption=messages_text['followus'])
             except:
-                logging.info("FileNotFoundError")
+                await composer.msg_handler.send_message(full_path, chat_id, duration, thumb_url, downloading_message.message_id)
+        else:
+            await call.message.answer(messages_text["downloadError"], reply_markup=await get_back_keyboard())
+
+        await downloading_message.delete()
+
+        try:
+            await asyncio.sleep(2)
+            os.remove(full_path)
+        except:
+            logging.info("FileNotFoundError")
     except Exception as e:
         exception_hook(*(sys.exc_info()))
-        await message.answer(text=messages_text["downloadError"])
+        await call.message.answer(text=messages_text["downloadError"])
+
+        try:
+            os.remove(full_path)
+        except:
+            logging.info("FileNotFoundError")

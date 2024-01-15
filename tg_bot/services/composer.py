@@ -23,7 +23,7 @@ class MessageHandler:
         self._client = client
         self.config = config
 
-    async def send_message(self, video_path: str, user_id: int, duration: int, thumbnail_path: str, downloading_message: int):
+    async def send_message(self, video_path: str, user_id: int, duration: int, thumb_url: str, downloading_message: int):
 
         video_attributes = [
             DocumentAttributeVideo(
@@ -38,12 +38,10 @@ class MessageHandler:
             file=video_path,
             mime_type='video/mp4',
             attributes=video_attributes,
-            thumb=thumbnail_path,
-            caption=f"{user_id}*_*{downloading_message}"
+            caption=f"{user_id}*_*{downloading_message}*_*{thumb_url}"
             )
 
         try:
             os.remove(video_path)
-            os.remove(thumbnail_path)
         except:
             print("FileNotFoundError")

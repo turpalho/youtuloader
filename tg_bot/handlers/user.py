@@ -3,6 +3,7 @@ import json
 import os
 import logging
 import time
+from datetime import datetime
 
 from aiogram import F, Router, Bot
 from aiogram.filters import CommandStart, Command
@@ -11,27 +12,29 @@ from aiogram.types import (CallbackQuery,
                            Message,
                            FSInputFile,
                            InputMediaPhoto,
+                           URLInputFile,
                            LabeledPrice,
                            PreCheckoutQuery,
                            ShippingQuery,
                            ContentType)
 from aiogram.utils.markdown import hbold, hcode, hlink
+from pytube.exceptions import AgeRestrictedError
 
 from database.repository import DataFacade
 
 # from tg_bot.filters.user import AddAdminFilter
 from tg_bot.config import Config
 from tg_bot.misc.states import DownloadState
-from tg_bot.services.youtubeManager import get_video_length, is_youtube_url, download_video_async
 from tg_bot.services.messages_text import messages_text
 from tg_bot.keyboards.user import (get_main_keyboard,
                                    get_back_keyboard,
-                                   get_subscribe_keyboard,
                                    get_pay_keyboard,
-                                   get_payment_methods_keyboard)
-from tg_bot.services.utils import create_absolute_path, downloader_youtube_video
+                                   get_payment_methods_keyboard,
+                                   get_resolution_keyboard, get_subscribe_keyboard)
 from tg_bot.filters.user import AddAdminFilter
 from tg_bot.services.composer import Composer
+from tg_bot.services.utils import create_absolute_path, downloader_youtube_video, create_files_path
+from tg_bot.services.youtubeManager import is_youtube_url, get_thumbnail_url, get_video_resolution, get_video_length
 
 logger = logging.getLogger(__name__)
 
@@ -64,23 +67,26 @@ async def get_menu(obj: Message | CallbackQuery, state: FSMContext, dataFacade: 
         await obj.answer(text=messages_text["menu"], reply_markup=await get_main_keyboard())
 
         try:
-            username = None
-            full_name = None
-            if obj.from_user.username:
-                username = obj.from_user.username
-            if obj.from_user.full_name:
-                full_name = obj.from_user.full_name
-            await dataFacade.add_user(obj.chat.id, username, full_name)
+            user_id = obj.chat.id
+            user_exists = await dataFacade.user_exists(user_id)
+            if not user_exists:
+                username = None
+                full_name = None
+                if obj.from_user.username:
+                    username = obj.from_user.username
+                if obj.from_user.full_name:
+                    full_name = obj.from_user.full_name
+                await dataFacade.add_user(user_id, username, full_name)
         except Exception as e:
             logging.info(str(e))
 
+    data = await state.get_data()
     try:
-        data = await state.get_data()
         user_id = int(data["user_id"])
         invoice_message = int(data["invoice_message"])
         await bot.delete_message(user_id, invoice_message)
     except:
-        logging.info("Не invoice")
+        logging.info("No invoice")
 
     await state.clear()
 
@@ -94,8 +100,75 @@ async def enter_url(call: CallbackQuery, state: FSMContext) -> None:
 
 
 @user_router.message(DownloadState.waiting_send_video_url)
-async def download_youtube_video(message: Message, state: FSMContext, dataFacade: DataFacade, bot: Bot, config: Config, composer: Composer) -> None:
-    await downloader_youtube_video(message, state, dataFacade, bot, config, composer)
+async def set_video_resolution(message: Message, state: FSMContext, dataFacade: DataFacade, bot: Bot, config: Config, composer: Composer) -> None:
+    try:
+        video_url = message.text
+        if not is_youtube_url(video_url):
+            await message.answer(text=messages_text["downloadError"])
+            return
+
+        waitingMessage = await message.answer(messages_text["gettingInfo"])
+        await bot.send_chat_action(message.chat.id, action="upload_photo")
+
+        duration = await get_video_length(video_url)
+        if duration > 300:
+            user = await dataFacade.get_user(user_id=message.chat.id)
+            if not user.premium:
+                await message.answer(text=messages_text["unsubscribed"], reply_markup=await get_subscribe_keyboard())
+                await waitingMessage.delete()
+                return
+
+
+        thumb_url = await get_thumbnail_url(video_url)
+        video_name, video_path, full_path = create_files_path()
+        await state.set_data({"video_name": video_name})
+        await state.update_data({"video_path": video_path})
+        await state.update_data({"full_path": full_path})
+        await state.update_data({"video_url": video_url})
+        await state.update_data({"duration": str(duration)})
+        await state.update_data({"user_id": str(message.chat.id)})
+
+        caption = f'{hlink(video_url, video_url)}\n\nКачество:  Размер\n\n'
+        resolutions = await get_video_resolution(video_url)
+        for key, resolution in resolutions.items():
+            if key == "1080p":
+                caption += f"🔰 {resolution[0]}:   {resolution[1]}Mb\n"
+            else:
+                caption += f"🟢  {resolution[0]}:  {resolution[1]}Mb\n"
+
+        thumb_file = URLInputFile(thumb_url)
+
+        sended_photo = await message.answer_photo(photo=thumb_file, caption=caption, reply_markup=await get_resolution_keyboard(resolutions))
+        await waitingMessage.delete()
+
+        await state.update_data({"thumb_url": thumb_url})
+        await state.update_data({"invoice_message": str(sended_photo.message_id)})
+    except AgeRestrictedError:
+        await message.answer(messages_text["errorVideo"], reply_markup=await get_back_keyboard())
+    except Exception as e:
+        await message.answer(messages_text["downloadError"], reply_markup=await get_back_keyboard())
+
+
+@user_router.callback_query(F.data.startswith('resol_'))
+async def download_youtube_video(call: CallbackQuery, state: FSMContext, dataFacade: DataFacade, bot: Bot, config: Config, composer: Composer):
+    data = await state.get_data()
+    video_name = data["video_name"]
+    video_path = data["video_path"]
+    full_path = data["full_path"]
+    thumb_url = data["thumb_url"]
+    video_url = data["video_url"]
+    duration = int(data["duration"])
+    message_id = int(data["invoice_message"])
+    await bot.delete_message(call.message.chat.id, message_id)
+
+    resolution = call.data.split("_")[1]
+    if resolution == "1080p":
+        user = await dataFacade.get_user(user_id=call.message.chat.id)
+        if not user.premium:
+            await call.message.answer(text=messages_text["unsubscribedHD"], reply_markup=await get_subscribe_keyboard())
+            return
+
+    await downloader_youtube_video(call, state, video_url, bot, composer, video_name, video_path, full_path, thumb_url, resolution, duration)
 
 
 @user_router.message(Command(commands=['help']))
@@ -219,14 +292,65 @@ async def all_meesages(message: Message, state: FSMContext, dataFacade: DataFaca
     await state.clear()
 
     if message.chat.id == config.tg_bot.client_user_id:
-        logging.info(message)
         video = message.video
         data = message.caption.split("*_*")
         user_id = int(data[0])
         message_del_id = int(data[1])
+        thumb_url = data[2]
 
-        await bot.delete_message(user_id, message_del_id)
-        await bot.send_video(chat_id=user_id, video=video.file_id, caption=messages_text['followus'])
+        thumb_file = URLInputFile(thumb_url)
+        await bot.send_video(chat_id=user_id, video=video.file_id, thumbnail=thumb_file, caption=messages_text['followus'])
+
+        try:
+            await bot.delete_message(user_id, message_del_id)
+        except Exception as e:
+            logging.error(f"Message {message_del_id} not found!")
+
         return
 
-    await downloader_youtube_video(message, state, dataFacade, bot, config, composer)
+    try:
+        video_url = message.text
+        if not is_youtube_url(video_url):
+            await message.answer(text=messages_text["downloadError"])
+            return
+
+        waitingMessage = await message.answer(messages_text["gettingInfo"])
+        await bot.send_chat_action(message.chat.id, action="upload_photo")
+
+        duration = await get_video_length(video_url)
+        if duration > 300:
+            user = await dataFacade.get_user(user_id=message.chat.id)
+            if not user.premium:
+                await message.answer(text=messages_text["unsubscribed"], reply_markup=await get_subscribe_keyboard())
+                await waitingMessage.delete()
+                return
+
+
+        thumb_url = await get_thumbnail_url(video_url)
+        video_name, video_path, full_path = create_files_path()
+        await state.set_data({"video_name": video_name})
+        await state.update_data({"video_path": video_path})
+        await state.update_data({"full_path": full_path})
+        await state.update_data({"video_url": video_url})
+        await state.update_data({"duration": str(duration)})
+        await state.update_data({"user_id": str(message.chat.id)})
+
+        caption = f'{hlink(video_url, video_url)}\n\nКачество:  Размер\n\n'
+        resolutions = await get_video_resolution(video_url)
+        for key, resolution in resolutions.items():
+            if key == "1080p":
+                caption += f"🔰 {resolution[0]}:   {resolution[1]}Mb\n"
+            else:
+                caption += f"🟢  {resolution[0]}:  {resolution[1]}Mb\n"
+
+        thumb_file = URLInputFile(thumb_url)
+
+        sended_photo = await message.answer_photo(photo=thumb_file, caption=caption, reply_markup=await get_resolution_keyboard(resolutions))
+        await waitingMessage.delete()
+
+        await state.update_data({"thumb_url": thumb_url})
+        await state.update_data({"invoice_message": str(sended_photo.message_id)})
+    except AgeRestrictedError:
+        await message.answer(messages_text["errorVideo"], reply_markup=await get_back_keyboard())
+    except Exception as e:
+        await message.answer(messages_text["downloadError"], reply_markup=await get_back_keyboard())
